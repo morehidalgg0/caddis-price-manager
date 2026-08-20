@@ -278,7 +278,180 @@ export const ExcelHandler = {
   },
 
   /**
-   * Limpia y extrae un valor numérico de strings argentinos o internacionales (ej: "1.800,00", "$ 150.00", "USD 0,85")
+   * Lee un archivo PDF y extrae items de la lista de precios de Caddis
+   */
+  async readCaddisPdf(file) {
+    if (typeof pdfjsLib === 'undefined') {
+      throw new Error('La librería PDF.js no está cargada. Verifica tu conexión a internet.');
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const allTextItems = [];
+
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
+
+      textContent.items.forEach(item => {
+        const str = item.str.trim();
+        if (!str) return;
+        allTextItems.push({
+          text: str,
+          x: Math.round(item.transform[4]),
+          y: Math.round(item.transform[5]),
+          width: item.width,
+          pageNum
+        });
+      });
+    }
+
+    if (allTextItems.length === 0) return [];
+
+    // Agrupar items por línea (misma Y con tolerancia)
+    allTextItems.sort((a, b) => b.y - a.y || a.x - b.x);
+
+    const lines = [];
+    let currentLine = [allTextItems[0]];
+    let currentY = allTextItems[0].y;
+
+    for (let i = 1; i < allTextItems.length; i++) {
+      const item = allTextItems[i];
+      if (Math.abs(item.y - currentY) < 5) {
+        currentLine.push(item);
+      } else {
+        currentLine.sort((a, b) => a.x - b.x);
+        lines.push(currentLine);
+        currentLine = [item];
+        currentY = item.y;
+      }
+    }
+    if (currentLine.length > 0) {
+      currentLine.sort((a, b) => a.x - b.x);
+      lines.push(currentLine);
+    }
+
+    // Convertir líneas a strings separados por tab (para reutilizar parsePastedText)
+    const textLines = lines.map(line => {
+      let result = '';
+      let lastX = 0;
+      line.forEach(item => {
+        const gap = item.x - lastX;
+        if (gap > 20) {
+          result += '\t';
+        } else if (gap > 5 && result.length > 0) {
+          result += ' ';
+        }
+        result += item.text;
+        lastX = item.x + (item.width || 0);
+      });
+      return result;
+    });
+
+    // Buscar encabezados para detectar columnas
+    let headerLineIndex = -1;
+    let colCodigo = -1, colArticulo = -1, colPrecio = -1, colCosto = -1;
+
+    for (let i = 0; i < Math.min(20, textLines.length); i++) {
+      const cells = textLines[i].split('\t').map(c => c.toLowerCase().trim());
+      const idxCod = cells.findIndex(c => c.includes('cod') || c === 'codigo' || c === 'código');
+      const idxArt = cells.findIndex(c => c.includes('articulo') || c.includes('artículo') || c.includes('descripcion') || c.includes('producto'));
+      const idxPrec = cells.findIndex(c => c.includes('precio venta') || c.includes('precio final') || c.includes('pvp') || c === 'precio');
+      const idxCost = cells.findIndex(c => c.includes('costo'));
+
+      if (idxCod !== -1 || idxPrec !== -1) {
+        headerLineIndex = i;
+        colCodigo = idxCod;
+        colArticulo = idxArt;
+        colPrecio = idxPrec;
+        colCosto = idxCost;
+        break;
+      }
+    }
+
+    // Si no encontró encabezados, intentar por posición (columnas fijas típicas de Caddis)
+    if (headerLineIndex === -1) {
+      headerLineIndex = 0;
+      // Detectar: buscar línea con al menos 2 columnas donde una sea numérica
+      for (let i = 0; i < Math.min(10, textLines.length); i++) {
+        const cells = textLines[i].split('\t');
+        if (cells.length >= 2) {
+          const hasNum = cells.some(c => /[\d.,]+/.test(c) && c.length < 15);
+          const hasText = cells.some(c => /[a-zA-Záéíóú]/.test(c) && c.length > 3);
+          if (hasNum && hasText) {
+            headerLineIndex = i;
+            break;
+          }
+        }
+      }
+    }
+
+    // Extraer items desde la línea siguiente al encabezado
+    const items = [];
+    for (let i = headerLineIndex + 1; i < textLines.length; i++) {
+      const line = textLines[i].trim();
+      if (!line) continue;
+
+      const cells = line.split('\t').map(c => c.trim());
+
+      // Ignorar líneas de totales / pie de página
+      const lowerLine = line.toLowerCase();
+      if (lowerLine.includes('total') || lowerLine.includes('subtotal') || lowerLine.includes('pagina') || lowerLine.includes('page')) continue;
+
+      let codigo = '', articulo = '', precioVenta = 0, costoConImp = 0;
+
+      if (colCodigo !== -1 && colCodigo < cells.length) {
+        codigo = cells[colCodigo];
+      }
+      if (colArticulo !== -1 && colArticulo < cells.length) {
+        articulo = cells[colArticulo];
+      }
+      if (colPrecio !== -1 && colPrecio < cells.length) {
+        precioVenta = this.cleanNumeric(cells[colPrecio]);
+      }
+      if (colCosto !== -1 && colCosto < cells.length) {
+        costoConImp = this.cleanNumeric(cells[colCosto]);
+      }
+
+      // Fallback: si no mapeó columnas, intentar detectar por contenido
+      if (!codigo && !articulo) {
+        if (cells.length >= 2) {
+          // Asumir: primera columna = código o nombre, última numérica = precio
+          const lastCell = cells[cells.length - 1];
+          const numVal = this.cleanNumeric(lastCell);
+          if (numVal > 0) {
+            precioVenta = numVal;
+            if (cells.length >= 3) {
+              codigo = cells[0];
+              articulo = cells[1];
+            } else {
+              articulo = cells[0];
+            }
+          }
+        }
+      }
+
+      if (!codigo && !articulo) continue;
+      if (precioVenta <= 0) continue;
+
+      if (!articulo) articulo = codigo;
+
+      items.push({
+        codigo: codigo || '',
+        articulo,
+        precioVenta,
+        costoConImpuestos: costoConImp,
+        costoSinImpuestos: 0,
+        iva: 21.0,
+        tipo: ''
+      });
+    }
+
+    return items;
+  },
+
+  /**
+   * Limpia y extrae un valor numérico de strings argentinos o internacionales (ej: "1.800,50", "$ 150.00", "USD 0,85")
    */
   cleanNumeric(value) {
     if (typeof value === 'number') return isNaN(value) ? 0 : value;

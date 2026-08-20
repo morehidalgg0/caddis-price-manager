@@ -307,13 +307,19 @@ function loadSampleData() {
  * Maneja la subida del Excel de Caddis
  */
 async function handleCaddisFileUpload(file) {
-  showLoading(true, 'Leyendo archivo de Caddis...');
+  showLoading(true, file.name.endsWith('.pdf') ? 'Leyendo PDF de Caddis...' : 'Leyendo archivo de Caddis...');
   try {
-    const { sheetsData } = await ExcelHandler.readWorkbook(file);
-    const firstSheetName = Object.keys(sheetsData)[0];
-    const rows = sheetsData[firstSheetName];
-    
-    const items = ExcelHandler.parseCaddisSheet(rows);
+    let items = [];
+
+    if (file.name.toLowerCase().endsWith('.pdf')) {
+      items = await ExcelHandler.readCaddisPdf(file);
+    } else {
+      const { sheetsData } = await ExcelHandler.readWorkbook(file);
+      const firstSheetName = Object.keys(sheetsData)[0];
+      const rows = sheetsData[firstSheetName];
+      items = ExcelHandler.parseCaddisSheet(rows);
+    }
+
     if (items.length === 0) {
       throw new Error('No se detectaron productos válidos en el archivo de Caddis.');
     }

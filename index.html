@@ -19,6 +19,19 @@
     }
   </script>
 
+  <!-- PDF.js para procesamiento local de PDFs (Local con fallback a CDN) -->
+  <script src="lib/pdf.min.js"></script>
+  <script>
+    if (typeof pdfjsLib === 'undefined') {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>');
+    }
+  </script>
+  <script>
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
+    }
+  </script>
+
   <!-- Estilos de la Aplicación -->
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/components.css">
@@ -160,16 +173,16 @@
           <div class="panel-header">
             <div>
               <h2 class="panel-title">📋 1. Lista de Precios Actual de Caddis</h2>
-              <p class="panel-subtitle">Exporta la lista desde Caddis (Excel o CSV) y súbela aquí.</p>
+              <p class="panel-subtitle">Exporta la lista desde Caddis (Excel, CSV o PDF) y súbela aquí.</p>
             </div>
             <div id="caddis-status-badge"></div>
           </div>
 
           <div class="dropzone" id="dropzone-caddis">
             <div class="dropzone-icon">📥</div>
-            <div class="dropzone-title">Arrastra aquí el Excel exportado de Caddis</div>
-            <div class="dropzone-desc">o haz clic para seleccionar archivo (.xlsx, .xls, .csv)</div>
-            <input type="file" id="file-input-caddis" accept=".xlsx,.xls,.csv" style="display: none;">
+            <div class="dropzone-title">Arrastra aquí el Excel o PDF exportado de Caddis</div>
+            <div class="dropzone-desc">o haz clic para seleccionar archivo (.xlsx, .xls, .csv, .pdf)</div>
+            <input type="file" id="file-input-caddis" accept=".xlsx,.xls,.csv,.pdf" style="display: none;">
           </div>
         </div>
 
