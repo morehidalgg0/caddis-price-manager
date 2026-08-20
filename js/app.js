@@ -627,7 +627,7 @@ function renderMatcherTable() {
   if (AppState.matchedData.length === 0) {
     container.innerHTML = `
       <tr>
-        <td colspan="6" class="text-center py-6 text-muted">
+        <td colspan="4" class="text-center py-6 text-muted">
           No hay artículos de proveedor cargados aún. Por favor sube un archivo en el Paso 1.
         </td>
       </tr>
@@ -644,7 +644,7 @@ function renderMatcherTable() {
     let badgeText = 'Sin Vinculación';
     if (row.isManualMapping) {
       badgeClass = 'badge-primary';
-      badgeText = '★ Memorizado';
+      badgeText = '✓ Confirmado';
     } else if (score >= 75) {
       badgeClass = 'badge-success';
       badgeText = `Alta (${score}%)`;
@@ -657,7 +657,7 @@ function renderMatcherTable() {
     }
 
     return `
-      <tr>
+      <tr ${row.isManualMapping ? 'style="background: rgba(34,197,94,0.06);"' : ''}>
         <td>
           <strong>${escapeHtml(sItem.articulo)}</strong>
           <div class="text-xs text-muted">Costo: ${sItem.moneda} ${sItem.precio} | IVA ${sItem.iva}%</div>
@@ -673,17 +673,19 @@ function renderMatcherTable() {
             <span class="text-danger">Ninguna coincidencia automática suficiente</span>
           `}
         </td>
-        <td class="text-center">
-          <button class="btn btn-sm btn-outline btn-action-match" data-index="${idx}">
-            ${cItem ? 'Cambiar / Ajustar' : 'Vincular Manualmente'}
-          </button>
-        </td>
-        <td class="text-center">
+        <td class="text-center" style="white-space: nowrap;">
           ${cItem ? `
-            <button class="btn btn-sm btn-icon btn-save-memory" data-index="${idx}" title="Recordar esta relación para siempre">
-              💾 Recordar
+            <button class="btn btn-sm btn-confirm btn-confirm-match ${row.isManualMapping ? 'confirmed' : ''}" data-index="${idx}" title="${row.isManualMapping ? 'Ya está confirmado y guardado' : 'Confirmar que es el mismo artículo y guardar para siempre'}">
+              ${row.isManualMapping ? '✅ Confirmado' : '✓ Confirmar'}
             </button>
-          ` : ''}
+            <button class="btn btn-sm btn-outline btn-action-match" data-index="${idx}" title="Buscar otro artículo en Caddis">
+              Cambiar
+            </button>
+          ` : `
+            <button class="btn btn-sm btn-outline btn-action-match" data-index="${idx}">
+              Vincular Manualmente
+            </button>
+          `}
         </td>
       </tr>
     `;
@@ -697,7 +699,7 @@ function renderMatcherTable() {
     });
   });
 
-  container.querySelectorAll('.btn-save-memory').forEach(btn => {
+  container.querySelectorAll('.btn-confirm-match').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const idx = parseInt(e.currentTarget.dataset.index);
       const row = AppState.matchedData[idx];
@@ -705,7 +707,7 @@ function renderMatcherTable() {
         const cleanKey = Matcher.normalize(row.supplierItem.articulo);
         Storage.saveMapping(cleanKey, row.matchedCaddisItem);
         row.isManualMapping = true;
-        showToast(`Equivalencia guardada para "${row.supplierItem.articulo}"`, 'success');
+        showToast(`✅ Confirmado: "${row.supplierItem.articulo}" → [${row.matchedCaddisItem.codigo}] ${row.matchedCaddisItem.articulo}`, 'success');
         render();
       }
     });
