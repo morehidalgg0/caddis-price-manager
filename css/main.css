@@ -1,0 +1,279 @@
+/* ==========================================================================
+   MAIN.CSS - Design Tokens & Core Layout for Caddis Price Manager
+   ========================================================================== */
+
+:root {
+  /* Colors - Modern Slate & Financial Emerald Theme */
+  --bg-app: #0f172a;
+  --bg-surface: #1e293b;
+  --bg-surface-elevated: #273549;
+  --bg-surface-hover: #334155;
+  --bg-input: #0f172a;
+  
+  --border-subtle: #334155;
+  --border-focus: #38bdf8;
+  --border-active: #0ea5e9;
+
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+  --text-inverse: #0f172a;
+
+  /* Brand & Accent Colors */
+  --primary: #0ea5e9;
+  --primary-hover: #0284c7;
+  --primary-subtle: rgba(14, 165, 233, 0.15);
+  
+  --emerald: #10b981;
+  --emerald-hover: #059669;
+  --emerald-subtle: rgba(16, 185, 129, 0.15);
+
+  --amber: #f59e0b;
+  --amber-subtle: rgba(245, 158, 11, 0.15);
+
+  --rose: #f43f5e;
+  --rose-subtle: rgba(244, 63, 94, 0.18);
+
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+
+  /* Layout & Spacing */
+  --header-height: 70px;
+  --max-width: 1440px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+  --shadow-modal: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-app);
+  color: var(--text-main);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==========================================================================
+   Header & Top Navigation
+   ========================================================================== */
+.app-header {
+  height: var(--header-height);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+}
+
+.header-container {
+  width: 100%;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand-section {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.brand-logo {
+  width: 38px;
+  height: 38px;
+  background: linear-gradient(135deg, var(--emerald), var(--primary));
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  color: #fff;
+  font-size: 20px;
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+}
+
+.brand-info h1 {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-main);
+}
+
+.brand-info p {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.header-stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stat-pill {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.stat-pill .stat-label {
+  color: var(--text-muted);
+}
+
+.stat-pill .stat-num {
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-main);
+}
+
+.stat-pill.pill-danger .stat-num {
+  color: var(--rose);
+}
+
+.stat-pill.pill-warning .stat-num {
+  color: var(--amber);
+}
+
+.dollar-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--emerald-subtle);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  color: var(--emerald);
+  font-weight: 600;
+}
+
+.dollar-indicator button {
+  background: none;
+  border: none;
+  color: var(--emerald);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: transform var(--transition-fast);
+}
+
+.dollar-indicator button.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  100% { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   Main Content Layout & Step Navigator
+   ========================================================================== */
+.app-main {
+  flex: 1;
+  max-width: var(--max-width);
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.nav-tabs-bar {
+  display: flex;
+  gap: 8px;
+  background: var(--bg-surface);
+  padding: 6px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  overflow-x: auto;
+}
+
+.nav-tab-btn {
+  flex: 1;
+  min-width: 160px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all var(--transition-fast);
+}
+
+.nav-tab-btn:hover {
+  color: var(--text-main);
+  background: var(--bg-surface-elevated);
+}
+
+.nav-tab-btn.active {
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.25);
+}
+
+.tab-pane {
+  display: none;
+  flex-direction: column;
+  gap: 20px;
+  animation: fadeIn 200ms ease;
+}
+
+.tab-pane.active {
+  display: flex;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================================================
+   Footer
+   ========================================================================== */
+.app-footer {
+  margin-top: auto;
+  border-top: 1px solid var(--border-subtle);
+  padding: 16px 24px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  background: var(--bg-surface);
+}

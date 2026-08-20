@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestor de Precios Caddis | Actualizador Inteligente PVP y Mayorista</title>
+  <meta name="description" content="Sistema intermediario para calcular costos en dólares, aplicar IVA y margen del 120%, comparar con PVP actual y exportar listas para Caddis.">
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+  <!-- SheetJS (XLSX) para procesamiento local de Excel (Local con fallback a CDN) -->
+  <script src="lib/xlsx.full.min.js"></script>
+  <script>
+    if (typeof XLSX === 'undefined') {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"><\/script>');
+    }
+  </script>
+
+  <!-- Estilos de la Aplicación -->
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+
+  <!-- ENCABEZADO PRINCIPAL -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand-section">
+        <div class="brand-logo">C</div>
+        <div class="brand-info">
+          <h1>Gestor de Precios Caddis</h1>
+          <p>Intermediario Inteligente de Proveedores a Caddis ERP</p>
+        </div>
+      </div>
+
+      <div class="header-stats">
+        <div class="dollar-indicator" title="Cotización de referencia para conversión">
+          <span id="dollar-live-tag">Dólar BNA: $1.510,00</span>
+          <button id="btn-refresh-dollar" title="Actualizar cotización en tiempo real">🔄</button>
+        </div>
+
+        <div class="stat-pill">
+          <span class="stat-label">Artículos Prov.:</span>
+          <span class="stat-num" id="stat-prov-count">0</span>
+        </div>
+
+        <div class="stat-pill">
+          <span class="stat-label">Vinculados:</span>
+          <span class="stat-num" id="stat-matched-count">0/0</span>
+        </div>
+
+        <div class="stat-pill pill-warning">
+          <span class="stat-label">Requieren Aumento:</span>
+          <span class="stat-num" id="stat-increase-count">0</span>
+        </div>
+
+        <div class="stat-pill pill-danger">
+          <span class="stat-label">Venta a Pérdida:</span>
+          <span class="stat-num" id="stat-loss-count">0</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="app-main">
+
+    <!-- BARRA DE PESTAÑAS / FLUJO DE PASOS -->
+    <nav class="nav-tabs-bar" aria-label="Pasos del proceso">
+      <button class="nav-tab-btn active" data-tab="setup">
+        <span>1️⃣ Carga & Configuración</span>
+      </button>
+      <button class="nav-tab-btn" data-tab="matcher">
+        <span>2️⃣ Smart Matcher (Vinculación)</span>
+      </button>
+      <button class="nav-tab-btn" data-tab="analysis">
+        <span>3️⃣ Comparador de Precios</span>
+      </button>
+      <button class="nav-tab-btn" data-tab="export">
+        <span>4️⃣ Exportar a Caddis</span>
+      </button>
+      <button class="nav-tab-btn" data-tab="calculator">
+        <span>🧮 Simulador Rápido</span>
+      </button>
+      <button class="nav-tab-btn" data-tab="saved-mappings">
+        <span>🧠 Memoria de Nombres</span>
+      </button>
+    </nav>
+
+    <!-- ====================================================================
+         PASO 1: CARGA & CONFIGURACIÓN
+         ==================================================================== -->
+    <section class="tab-pane active" id="tab-setup">
+      
+      <!-- Parámetros Financieros Globales -->
+      <div class="card-panel">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">⚙️ Parámetros de Cálculo y Cotización</h2>
+            <p class="panel-subtitle">Configura la cotización del dólar, alícuotas y el margen de ganancia deseado.</p>
+          </div>
+          <button class="btn btn-outline btn-sm" id="btn-load-sample-data">
+            ⚡ Cargar Datos de Demostración
+          </button>
+        </div>
+
+        <div class="grid-4-col">
+          <div class="form-group">
+            <label class="form-label" for="input-dollar-rate">Cotización Dólar (ARS)</label>
+            <div class="input-with-affix">
+              <span class="input-affix">$</span>
+              <input type="number" step="0.5" id="input-dollar-rate" class="form-input font-mono" value="1510.00">
+            </div>
+            <span class="text-xs text-muted">Ej: Dólar BNA $1.510 como en Caddis</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="input-markup-pvp">MarkUp Minorista / PVP (%)</label>
+            <div class="input-with-affix">
+              <span class="input-affix">+</span>
+              <input type="number" step="1" id="input-markup-pvp" class="form-input font-mono" value="120">
+              <span class="input-affix">%</span>
+            </div>
+            <span class="text-xs text-muted">Margen del 120% sobre costo c/IVA</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="input-markup-mayorista">MarkUp Mayorista (%)</label>
+            <div class="input-with-affix">
+              <span class="input-affix">+</span>
+              <input type="number" step="1" id="input-markup-mayorista" class="form-input font-mono" value="45">
+              <span class="input-affix">%</span>
+            </div>
+            <span class="text-xs text-muted">Margen para lista mayorista</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="select-rounding">Regla de Redondeo</label>
+            <select id="select-rounding" class="form-select">
+              <option value="round100">Redondear a $100 más cercano (Recomendado)</option>
+              <option value="round50">Redondear a $50</option>
+              <option value="round500">Redondear a $500</option>
+              <option value="round1000">Redondear a $1.000</option>
+              <option value="none">Sin redondeo (Exacto)</option>
+            </select>
+            <span class="text-xs text-muted">Evita centavos extraños en mostrador</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Zonas de Carga de Archivos -->
+      <div class="grid-2-col">
+        
+        <!-- Dropzone 1: Lista de Caddis -->
+        <div class="card-panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">📋 1. Lista de Precios Actual de Caddis</h2>
+              <p class="panel-subtitle">Exporta la lista desde Caddis (Excel o CSV) y súbela aquí.</p>
+            </div>
+            <div id="caddis-status-badge"></div>
+          </div>
+
+          <div class="dropzone" id="dropzone-caddis">
+            <div class="dropzone-icon">📥</div>
+            <div class="dropzone-title">Arrastra aquí el Excel exportado de Caddis</div>
+            <div class="dropzone-desc">o haz clic para seleccionar archivo (.xlsx, .xls, .csv)</div>
+            <input type="file" id="file-input-caddis" accept=".xlsx,.xls,.csv" style="display: none;">
+          </div>
+        </div>
+
+        <!-- Dropzone 2: Lista del Proveedor -->
+        <div class="card-panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">📦 2. Lista de Costos del Proveedor</h2>
+              <p class="panel-subtitle">Sube el archivo enviado por el proveedor (USD o ARS).</p>
+            </div>
+          </div>
+
+          <div class="dropzone" id="dropzone-supplier">
+            <div class="dropzone-icon">📑</div>
+            <div class="dropzone-title">Arrastra aquí el Excel del Proveedor</div>
+            <div class="dropzone-desc">Detecta columnas de descripción, precios en USD/ARS e IVA</div>
+            <input type="file" id="file-input-supplier" accept=".xlsx,.xls,.csv" style="display: none;">
+          </div>
+
+          <!-- O pegar texto libre / PDF -->
+          <div class="form-group mt-2">
+            <label class="form-label">¿Tienes los precios en PDF o WhatsApp? Pégalos aquí:</label>
+            <textarea id="textarea-pasted-supplier" class="form-textarea" placeholder="Ejemplo:
+Glass Antiespia Iphone 14   0.85
+Glass Antiespia Iphone 14 Pro   0.85
+Cargador Samsung 25W   24.50"></textarea>
+            <button class="btn btn-outline btn-sm" id="btn-parse-pasted" style="align-self: flex-end;">
+              Procesar Texto Pegado
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Resumen de Datos Cargados -->
+      <div id="setup-summary-container"></div>
+    </section>
+
+    <!-- ====================================================================
+         PASO 2: SMART MATCHER & VINCULACIÓN
+         ==================================================================== -->
+    <section class="tab-pane" id="tab-matcher">
+      <div class="card-panel">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">🔗 Smart Matcher: Vinculación de Productos</h2>
+            <p class="panel-subtitle">El sistema relaciona los nombres del proveedor con tus artículos de Caddis. Puedes corregir o memorizar asociaciones.</p>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 32%;">Artículo Proveedor</th>
+                <th style="width: 14%;">Similitud</th>
+                <th style="width: 34%;">Artículo Caddis Coincidente</th>
+                <th style="width: 12%;" class="text-center">Ajustar</th>
+                <th style="width: 8%;" class="text-center">Memoria</th>
+              </tr>
+            </thead>
+            <tbody id="matcher-table-tbody">
+              <!-- Renderizado dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         PASO 3: ANÁLISIS & COMPARADOR DE PRECIOS
+         ==================================================================== -->
+    <section class="tab-pane" id="tab-analysis">
+      <div class="card-panel">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">📊 Comparador de Precios & Detección de Aumentos</h2>
+            <p class="panel-subtitle">Compara el PVP actual en Caddis vs el nuevo precio calculado con Costo USD + IVA + 120%.</p>
+          </div>
+
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <select id="filter-status-select" class="form-select" style="width: auto;">
+              <option value="ALL">Mostrar Todos</option>
+              <option value="NEEDS_INCREASE" selected>Solo Requieren Aumento (PVP)</option>
+              <option value="LOSS_ALERT">🚨 Venta a Pérdida</option>
+              <option value="MATCHED">Solo Vinculados</option>
+              <option value="UNMATCHED">Sin Vincular</option>
+            </select>
+
+            <input type="text" id="search-table-input" class="form-input" placeholder="🔍 Buscar por nombre o código..." style="width: 240px; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);">
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 40px;" class="text-center">
+                  <input type="checkbox" id="checkbox-select-all" checked title="Seleccionar todos">
+                </th>
+                <th style="width: 90px;">Código</th>
+                <th>Artículo</th>
+                <th class="text-right" style="width: 120px;">Costo Prov.</th>
+                <th class="text-right" style="width: 110px;">PVP Actual</th>
+                <th class="text-right" style="width: 120px;">PVP Nuevo (+120%)</th>
+                <th class="text-right" style="width: 120px;">Diferencia</th>
+                <th class="text-right" style="width: 110px;">Mayorista</th>
+                <th class="text-center" style="width: 130px;">Estado</th>
+                <th class="text-center" style="width: 40px;">✏</th>
+              </tr>
+            </thead>
+            <tbody id="analysis-table-tbody">
+              <!-- Renderizado dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         PASO 4: EXPORTAR A CADDIS
+         ==================================================================== -->
+    <section class="tab-pane" id="tab-export">
+      <div class="card-panel">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">🚀 Exportar Precios Actualizados a Caddis</h2>
+            <p class="panel-subtitle">Descarga los archivos en el formato exacto requerido por Caddis para importación masiva.</p>
+          </div>
+        </div>
+
+        <div class="grid-3-col">
+          
+          <!-- Opción 1: Minorista -->
+          <div class="card-panel" style="background: var(--bg-surface-elevated);">
+            <h3 style="font-size: 15px; font-weight: 700; color: var(--primary);">🛍️ Lista MINORISTA (PVP)</h3>
+            <p class="text-xs text-muted">Genera un Excel (.xlsx) con columnas: <code>Codigo</code> y <code>Precio Final</code> aplicando el MarkUp del 120%.</p>
+            <button class="btn btn-primary" id="btn-export-caddis-minorista" style="margin-top: 10px;">
+              Descargar Excel Minorista
+            </button>
+          </div>
+
+          <!-- Opción 2: Mayorista -->
+          <div class="card-panel" style="background: var(--bg-surface-elevated);">
+            <h3 style="font-size: 15px; font-weight: 700; color: var(--emerald);">🏢 Lista MAYORISTA</h3>
+            <p class="text-xs text-muted">Genera un Excel (.xlsx) con columnas: <code>Codigo</code> y <code>Precio Final</code> aplicando el MarkUp mayorista.</p>
+            <button class="btn btn-success" id="btn-export-caddis-mayorista" style="margin-top: 10px;">
+              Descargar Excel Mayorista
+            </button>
+          </div>
+
+          <!-- Opción 3: Auditoría -->
+          <div class="card-panel" style="background: var(--bg-surface-elevated);">
+            <h3 style="font-size: 15px; font-weight: 700; color: var(--amber);">📑 Reporte de Auditoría</h3>
+            <p class="text-xs text-muted">Descarga una planilla completa con todas las columnas de cálculo, costos, márgenes y comparativas.</p>
+            <button class="btn btn-outline" id="btn-export-audit-report" style="margin-top: 10px;">
+              Descargar Auditoría Completa
+            </button>
+          </div>
+
+        </div>
+
+        <!-- Instrucciones Visuales para Subir a Caddis -->
+        <div class="card-panel" style="margin-top: 10px; background: rgba(14, 165, 233, 0.05); border-color: rgba(14, 165, 233, 0.3);">
+          <h3 style="font-size: 14.5px; font-weight: 700; color: var(--primary); margin-bottom: 8px;">
+            📌 ¿Cómo importar el archivo descargado en Caddis?
+          </h3>
+          <ol style="margin-left: 20px; font-size: 13px; color: var(--text-muted); display: flex; flex-direction: column; gap: 6px;">
+            <li>En tu sistema <strong>Caddis</strong>, ve al menú izquierdo de <strong>"Listas de Precios"</strong>.</li>
+            <li>Selecciona la lista a modificar (ej: <em>Minorista</em> o <em>Mayorista</em>).</li>
+            <li>En el recuadro inferior izquierdo <strong>"IMPORTAR PRECIOS"</strong>, haz clic en <strong>"Elija un archivo..."</strong>.</li>
+            <li>Selecciona el archivo descargado (ej: <code>caddis_precios_minorista_...xlsx</code>).</li>
+            <li>Haz clic en el botón <strong>"Importar"</strong>. ¡Los precios se actualizarán al instante!</li>
+          </ol>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         HERRAMIENTA EXTRA 1: CALCULADORA RÁPIDA / SIMULADOR
+         ==================================================================== -->
+    <section class="tab-pane" id="tab-calculator">
+      <div class="card-panel">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">🧮 Simulador Rápido de Costos y PVP</h2>
+            <p class="panel-subtitle">Calcula rápidamente el precio de venta sugerido para un producto individual.</p>
+          </div>
+        </div>
+
+        <div class="grid-2-col">
+          <div class="card-panel" style="background: var(--bg-surface-elevated);">
+            <div class="form-group">
+              <label class="form-label" for="calc-input-cost">Costo del Proveedor</label>
+              <div class="input-with-affix">
+                <input type="number" step="0.01" id="calc-input-cost" class="form-input font-mono" value="0.85">
+              </div>
+            </div>
+
+            <div class="grid-2-col">
+              <div class="form-group">
+                <label class="form-label" for="calc-select-currency">Moneda</label>
+                <select id="calc-select-currency" class="form-select">
+                  <option value="USD">Dólares (USD)</option>
+                  <option value="ARS">Pesos (ARS)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="calc-select-iva">Alícuota IVA</label>
+                <select id="calc-select-iva" class="form-select">
+                  <option value="21">21.0% (General)</option>
+                  <option value="10.5">10.5% (Electrónica/Bienes)</option>
+                  <option value="0">0% (Exento)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="calc-input-markup">Markup Minorista deseado (%)</label>
+              <div class="input-with-affix">
+                <span class="input-affix">+</span>
+                <input type="number" step="1" id="calc-input-markup" class="form-input font-mono" value="120">
+                <span class="input-affix">%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Resultados del simulador -->
+          <div class="card-panel" style="background: var(--bg-surface-elevated); justify-content: center;">
+            <div class="summary-cards-grid" style="grid-template-columns: 1fr; gap: 10px;">
+              <div class="summary-card">
+                <div class="summary-label">Costo ARS sin IVA</div>
+                <div class="summary-val text-muted" id="calc-res-cost-ars">$ 1.284</div>
+              </div>
+              <div class="summary-card">
+                <div class="summary-label">Costo ARS con IVA (+21%)</div>
+                <div class="summary-val text-muted" id="calc-res-cost-iva">$ 1.553</div>
+              </div>
+              <div class="summary-card highlight">
+                <div class="summary-label">PVP Minorista Sugerido (+120%)</div>
+                <div class="summary-val text-primary" id="calc-res-pvp">$ 3.400</div>
+              </div>
+              <div class="summary-card">
+                <div class="summary-label">Precio Mayorista Sugerido (+45%)</div>
+                <div class="summary-val text-success" id="calc-res-mayorista">$ 2.300</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         HERRAMIENTA EXTRA 2: MEMORIA DE EQUIVALENCIAS GUARDADAS
+         ==================================================================== -->
+    <section class="tab-pane" id="tab-saved-mappings">
+      <div class="card-panel">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">🧠 Memoria de Equivalencias Guardadas</h2>
+            <p class="panel-subtitle">Asociaciones manuales aprendidas entre nombres de proveedores y códigos de Caddis. Se aplican automáticamente en cada importación.</p>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 35%;">Nombre Limpio Proveedor</th>
+                <th style="width: 15%;">Código Caddis</th>
+                <th style="width: 35%;">Artículo en Caddis</th>
+                <th style="width: 15%;" class="text-center">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="saved-mappings-tbody">
+              <!-- Renderizado dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL DE ASOCIACIÓN MANUAL -->
+  <div class="modal-backdrop" id="modal-match">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">Vincular Producto con Caddis</h3>
+        <button class="btn-icon" id="modal-match-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div>
+          <span class="text-xs text-muted">Artículo del Proveedor:</span>
+          <div style="font-size: 15px; font-weight: 700; margin-top: 2px;" id="modal-supplier-item-title"></div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="modal-caddis-search">Buscar en tu catálogo de Caddis:</label>
+          <input type="text" id="modal-caddis-search" class="form-input" placeholder="Escribe parte del nombre o código..." style="background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);">
+        </div>
+
+        <div id="modal-results-container" style="display: flex; flex-direction: column; gap: 8px; max-height: 350px; overflow-y: auto;">
+          <!-- Resultados dinámicos -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOASTS DE NOTIFICACIÓN -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- OVERLAY DE CARGA -->
+  <div class="loading-overlay" id="loading-overlay">
+    <div class="spinner"></div>
+    <div id="loading-text" style="font-weight: 600; color: var(--text-main);">Cargando...</div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="app-footer">
+    Gestor de Precios Intermediario para Caddis ERP &copy; 2026. Procesamiento 100% local, seguro y sin envío de datos a servidores externos.
+  </footer>
+
+  <!-- Script Principal Modular -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

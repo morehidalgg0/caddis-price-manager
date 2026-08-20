@@ -1,0 +1,54 @@
+/* ==========================================================================
+   RESPONSIVE.CSS - Breakpoints & Media Queries
+   ========================================================================== */
+
+@media (max-width: 1024px) {
+  .grid-3-col, .summary-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .grid-4-col {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .header-container {
+    flex-direction: column;
+    height: auto;
+    padding: 12px 16px;
+    gap: 12px;
+  }
+
+  .app-header {
+    height: auto;
+  }
+
+  .header-stats {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .grid-2-col, .grid-3-col, .grid-4-col, .summary-cards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nav-tabs-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .nav-tab-btn {
+    min-width: 140px;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .app-main {
+    padding: 14px;
+  }
+
+  .card-panel {
+    padding: 16px;
+  }
+}
