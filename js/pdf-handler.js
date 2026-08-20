@@ -79,110 +79,81 @@ export const PdfHandler = {
   },
 
   /**
-   * Parsea un reporte de PDF con el formato exacto de Caddis (como en la captura: "Listas de Precios")
-   * Columnas: Codigo | Tipo | Detalle | Neto | Iva % | Precio Monto | Precio Venta | Moneda | Cotizacion | Puntos | Grupo | Lista
+   * Parsea un reporte de PDF con el formato exacto de Caddis
+   * Columnas: Codigo | Tipo | Detalle | Neto | IVA % | Precio | Precio Venta | $AR | Cotiz | Puntos | Grupo | Lista
+   * Ejemplo: "AT931 CARGADOR AUTO AT931 6.611,57 21,00 % 8.000,00 8.000,00 $AR 1 0 DISCONTINUO MINORISTA"
    */
   parseCaddisPdfLines(lines) {
     const items = [];
+    const CADDIS_TYPES = ['ACCESORIOS','CABLES','PARLANTE','LAMPARA','CELULAR','TECLADOS','ADAPTADORES','CARGADORES','MOCHILAS','SMARTWATCH','AURICULARES','EQUIPOS','VARIOS','VIDRIOS','FUNDAS','REPARACION','GENERICOS','PERIFERICOS'];
 
-    lines.forEach(line => {
-      // Ignorar encabezados, fechas y pies de página
+    for (const line of lines) {
       if (
         line.startsWith('Listas de Precios') ||
         line.includes('Codigo Tipo Detalle') ||
-        line.includes('Página') ||
-        line.includes('Pagina') ||
-        line.match(/^\d{2}-[A-Za-z]{3}-\d{4}/) // Ej: "20-Aug-2026 01:30:17"
-      ) {
-        return;
+        line.includes('Página') || line.includes('Pagina') ||
+        line.match(/^\d{2}-[A-Za-z]{3}-\d{4}/) ||
+        line.length < 10
+      ) continue;
+
+      if (!line.includes('$AR') && !line.includes('ARS') && !line.includes('USD') && !line.includes('SAR')) continue;
+      if (!line.includes('%')) continue;
+
+      const parts = line.split(/\s+/);
+
+      // 1. Find $AR position
+      let arIdx = -1;
+      for (let i = parts.length - 1; i >= 0; i--) {
+        if (parts[i] === '$AR' || parts[i] === 'ARS' || parts[i] === 'SAR') { arIdx = i; break; }
+      }
+      if (arIdx < 4) continue;
+
+      // 2. Find % position
+      let pctIdx = -1;
+      for (let i = 0; i < arIdx; i++) {
+        if (parts[i] === '%') { pctIdx = i; break; }
+        if (parts[i].endsWith('%') && parts[i].length <= 6) { pctIdx = i; break; }
+      }
+      if (pctIdx < 1) continue;
+
+      // 3. Extract IVA (token before %)
+      const iva = ExcelHandler.cleanNumeric(parts[pctIdx - 1]) || 21.0;
+
+      // 4. Extract neto (token before IVA)
+      const neto = ExcelHandler.cleanNumeric(parts[pctIdx - 2]) || 0;
+
+      // 5. Extract precio venta (first token after $AR)
+      const pVenta = ExcelHandler.cleanNumeric(parts[arIdx + 1]) || 0;
+
+      if (pVenta <= 0) continue;
+
+      // 6. Extract code and description from remaining tokens (0..pctIdx-3)
+      const codeAndDesc = parts.slice(0, pctIdx - 2);
+      if (codeAndDesc.length === 0) continue;
+
+      const codigo = codeAndDesc[0];
+      let tipo = 'VARIOS';
+      let descStart = 1;
+
+      if (codeAndDesc.length > 1 && CADDIS_TYPES.includes(codeAndDesc[1].toUpperCase())) {
+        tipo = codeAndDesc[1].toUpperCase();
+        descStart = 2;
       }
 
-      // Regex para detectar filas de productos de Caddis
-      // Estructura típica:
-      // Codigo [Tipo] Detalle... Neto Iva% PrecioMonto PrecioVenta Moneda Cotiz Puntos Grupo Lista
-      // Ej: "AS ANILLO SOUL 1.322,31 21,00 % 1.600,00 1.600,00 SAR 1 0 DISCONTINUO MINORISTA"
-      // Ej: "AI ACCESORIOS ADAPTADOR INTERNACIONAL 6.280,99 21,00 % 7.600,00 7.600,00 SAR 1 0 VARIOS MINORISTA"
-      // Ej: "GLOBAL ACCESORIOS CONTADORA DE BILLETES GLOBAL 145.334,84 10,50 % 161.700,00 161.700,00 SAR 1 0 VARIOS MINORISTA"
-      // Ej: "SR SERVICE 0,00 21,00 % 0,00 0,00 SAR 1 0 REPARACION MINORISTA"
+      const articulo = codeAndDesc.slice(descStart).join(' ') || codigo;
 
-      const caddisRowRegex = /^([A-Za-z0-9\-_./]+)\s+(?:(ACCESORIOS|CABLES|PARLANTE|LAMPARA|CELULAR|TECLADOS|ADAPTADORES|CARGADORES|MOCHILAS|SMARTWATCH|AURICULARES|EQUIPOS|VARIOS|VIDRIOS|FUNDAS|REPARACION)\s+)?(.*?)\s+([\d.,]+)\s+([\d.,]+)\s*%\s+([\d.,]+)\s+([\d.,]+)\s+(SAR|ARS|USD)\b.*$/i;
-
-      const match = line.match(caddisRowRegex);
-
-      if (match) {
-        const codigo = match[1].trim();
-        const tipo = match[2] ? match[2].trim() : 'VARIOS';
-        const detalle = match[3].trim();
-        const netoStr = match[4];
-        const ivaStr = match[5];
-        const precioMontoStr = match[6];
-        const precioVentaStr = match[7];
-        const moneda = match[8].toUpperCase() === 'SAR' ? 'ARS' : match[8].toUpperCase();
-
-        const neto = ExcelHandler.cleanNumeric(netoStr);
-        const iva = ExcelHandler.cleanNumeric(ivaStr) || 21.0;
-        const precioVenta = ExcelHandler.cleanNumeric(precioVentaStr) || ExcelHandler.cleanNumeric(precioMontoStr);
-        const costoConImpuestos = neto > 0 ? neto * (1 + iva / 100) : 0;
-
-        items.push({
-          codigo,
-          tipo,
-          articulo: detalle || codigo,
-          costoSinImpuestos: neto,
-          costoConImpuestos,
-          iva,
-          precioVenta,
-          moneda,
-          precioMayorista: Math.round(precioVenta * 0.7) // Estimado si no viene explícito
-        });
-      } else {
-        // Fallback para filas con formatos ligeramente distintos
-        // Buscar código al inicio y números al final (Neto, Iva, Precios)
-        const parts = line.split(/\s+/);
-        if (parts.length >= 6) {
-          const firstToken = parts[0];
-          const hasCurrency = line.includes('SAR') || line.includes('ARS') || line.includes('USD');
-          const hasPercent = line.includes('%');
-
-          if (hasCurrency && hasPercent && firstToken.length <= 15) {
-            // Intentar extraer números
-            const nums = line.match(/[\d.,]+/g) || [];
-            if (nums.length >= 4) {
-              const codigo = firstToken;
-              // Extraer IVA
-              const ivaMatch = line.match(/([\d.,]+)\s*%/);
-              const iva = ivaMatch ? ExcelHandler.cleanNumeric(ivaMatch[1]) : 21.0;
-              
-              // Los últimos 2 números antes de SAR suelen ser los precios
-              const idxSar = parts.findIndex(p => p === 'SAR' || p === 'ARS' || p === 'USD');
-              let pVenta = 0;
-              let neto = 0;
-              if (idxSar >= 2) {
-                pVenta = ExcelHandler.cleanNumeric(parts[idxSar - 1]);
-              }
-
-              // El detalle es lo que está entre el código y los números
-              const descTokens = parts.slice(1, parts.length - 6);
-              const detalle = descTokens.join(' ');
-
-              if (codigo && pVenta > 0) {
-                items.push({
-                  codigo,
-                  tipo: 'VARIOS',
-                  articulo: detalle || codigo,
-                  costoSinImpuestos: neto,
-                  costoConImpuestos: neto > 0 ? neto * (1 + iva / 100) : 0,
-                  iva,
-                  precioVenta: pVenta,
-                  moneda: 'ARS',
-                  precioMayorista: Math.round(pVenta * 0.7)
-                });
-              }
-            }
-          }
-        }
-      }
-    });
+      items.push({
+        codigo,
+        tipo,
+        articulo,
+        costoSinImpuestos: neto,
+        costoConImpuestos: neto > 0 ? neto * (1 + iva / 100) : 0,
+        iva,
+        precioVenta: pVenta,
+        moneda: 'ARS',
+        precioMayorista: Math.round(pVenta * 0.7)
+      });
+    }
 
     return items;
   },
