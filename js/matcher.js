@@ -14,8 +14,9 @@ const SYNONYMS = {
   'templado': ['glass', 'vidrio'],
   'antiespia': ['privacy', 'anti-espia', 'anti espia', 'privacidad'],
   'privacy': ['antiespia', 'anti-espia', 'anti espia'],
-  'funda': ['case', 'cover', 'protector', 'silicona', 'tpu'],
+  'funda': ['case', 'cover', 'protector', 'silicona', 'tpu', 'fundas'],
   'case': ['funda', 'cover', 'protector'],
+  'cover': ['funda', 'case', 'protector', 'carcasa'],
   'iphone': ['iph', 'ip'],
   'iph': ['iphone', 'ip'],
   'samsung': ['sam', 'sm'],
@@ -25,17 +26,53 @@ const SYNONYMS = {
   'redmi': ['xiaomi', 'mi'],
   'auricular': ['auriculares', 'buds', 'earbuds', 'headphone', 'headset', 'tws', 'in-ear'],
   'buds': ['auricular', 'auriculares', 'earbuds'],
-  'parlante': ['speaker', 'bafle', 'altavoz'],
+  'parlante': ['speaker', 'bafle', 'altavoz', 'micro'],
   'speaker': ['parlante', 'bafle'],
-  'cargador': ['charger', 'adaptador', 'fuente'],
+  'cargador': ['charger', 'adaptador', 'fuente', 'auto', 'viajero'],
   'charger': ['cargador', 'adaptador'],
-  'smartwatch': ['watch', 'reloj', 'smart watch', 'band'],
+  'smartwatch': ['watch', 'reloj', 'smart watch', 'band', 'active'],
   'watch': ['smartwatch', 'reloj'],
   'mochila': ['backpack', 'morral', 'bolso'],
   'promax': ['pro max', 'pro-max'],
   'lightning': ['ip', 'iphone', 'apple', 'v8'],
   'type-c': ['tipo-c', 'tipo c', 'type c', 'usbc', 'usb-c'],
-  'tipo c': ['type-c', 'type c', 'usbc', 'usb-c']
+  'tipo c': ['type-c', 'type c', 'usbc', 'usb-c'],
+  'cable': ['cables', 'mallado', 'alimentacion', 'conector'],
+  'cables': ['cable', 'mallado', 'alimentacion'],
+  'soporte': ['soporte', 'base', 'holder', 'auto', 'bici'],
+  'foco': ['foco', 'led', 'lampara', 'luz'],
+  'led': ['foco', 'lampara', 'luz', 'rgb'],
+  'mouse': ['raton', 'mouse pad', 'pad'],
+  'teclado': ['teclados', 'keyboard'],
+  'base': ['base', 'carga', 'cargador', 'soporte'],
+  'almohada': ['almohada', 'cable', 'pulsera'],
+  'pulsera': ['pulsera', 'almohada', 'cable'],
+  'extensor': ['extensor', 'repetidor', 'rango', 'wifi'],
+  'repetidor': ['extensor', 'repetidor', 'rango'],
+  'control': ['control', 'remoto', 'universal'],
+  'remoto': ['control', 'remoto', 'universal'],
+  'bateria': ['bateria', 'baterias', 'pila', 'pilas'],
+  'pila': ['pila', 'pilas', 'bateria', 'baterias'],
+  'humificador': ['humificador', 'aromas', 'humidificador'],
+  'estuche': ['estuche', 'funda', 'case', 'cover'],
+  'correa': ['correa', 'band', 'pulseira', 'strap'],
+  'ringo': ['ringo', 'ring', 'anillo'],
+  'anillo': ['ringo', 'ring', 'anillo'],
+  'pop': ['pop', 'socket', 'popsocket'],
+  'drone': ['drone', 'dji'],
+  'camara': ['camara', 'webcam', 'ip wifi'],
+  'proyector': ['proyector', 'projetor'],
+  'brazalete': ['brazalete', 'band', 'pulseira'],
+  'llavero': ['llavero', 'llaverо', 'keychain'],
+  'almacenamiento': ['almacenamiento', 'disco', 'ssd', 'pen', 'usb'],
+  'monitor': ['monitor', 'pantalla', 'display'],
+  'lente': ['lente', 'lupas', 'macro'],
+  'microfono': ['microfono', 'micro', 'mic'],
+  'imprimible': ['imprimible', 'impresora', 'filamento'],
+  'zapatillas': ['zapatillas', 'sneakers', 'calzado'],
+  'gabinete': ['gabinete', 'case', 'gamer'],
+  'heladera': ['heladera', 'cooler', 'refrigerante'],
+  'licuadora': ['licuadora', 'procesadora', 'mixer']
 };
 
 const STOP_WORDS = new Set([
@@ -113,8 +150,11 @@ export const Matcher = {
       } else {
         // Chequear coincidencia parcial de modelos (ej. "ip14" y "iphone 14", "g04" en "moto g04")
         for (let target of tokens2) {
-          if (t === target || (t.length > 3 && target.includes(t)) || (target.length > 3 && t.includes(target))) {
-            matchCount += 0.8;
+          if (t === target) {
+            matchCount += 1;
+            break;
+          } else if (t.length > 2 && target.length > 2 && (target.includes(t) || t.includes(target))) {
+            matchCount += 0.7;
             break;
           }
         }
@@ -168,7 +208,7 @@ export const Matcher = {
     }
 
     // 2. Buscar por coincidencia exacta de código si el proveedor envió código
-    const exactCode = caddisItems.find(c => 
+    const exactCode = caddisItems.find(c =>
       c.codigo && (c.codigo.toLowerCase() === cleanSupplierName || cleanSupplierName.startsWith(c.codigo.toLowerCase() + ' '))
     );
     if (exactCode) {
@@ -182,12 +222,19 @@ export const Matcher = {
     }
 
     // 3. Evaluar similitud con todos los artículos de Caddis
+    //    Probar contra articulo (descripción) y también contra la versión completa
     let bestMatch = null;
     let bestScore = 0;
 
     for (const caddisItem of caddisItems) {
-      const caddisName = caddisItem.articulo || caddisItem.nombre || caddisItem.descripcion || '';
-      const score = this.calculateSimilarity(supplierItemName, caddisName);
+      // Construir descripción completa: tipo + articulo
+      const fullDesc = [caddisItem.tipo, caddisItem.articulo].filter(Boolean).join(' ');
+      const articuloOnly = caddisItem.articulo || '';
+
+      // Probar similitud contra ambas versiones y quedarse con la mejor
+      const score1 = this.calculateSimilarity(supplierItemName, articuloOnly);
+      const score2 = this.calculateSimilarity(supplierItemName, fullDesc);
+      const score = Math.max(score1, score2);
 
       if (score > bestScore) {
         bestScore = score;
@@ -196,16 +243,16 @@ export const Matcher = {
     }
 
     let confidence = 'none';
-    if (bestScore >= 0.75) {
+    if (bestScore >= 0.70) {
       confidence = 'high';
-    } else if (bestScore >= 0.45) {
+    } else if (bestScore >= 0.40) {
       confidence = 'medium';
-    } else if (bestScore >= 0.25) {
+    } else if (bestScore >= 0.20) {
       confidence = 'low';
     }
 
     return {
-      match: bestScore >= 0.25 ? bestMatch : null,
+      match: bestScore >= 0.20 ? bestMatch : null,
       score: bestScore,
       confidence,
       isManualMapping: false,
