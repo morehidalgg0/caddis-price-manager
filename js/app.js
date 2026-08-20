@@ -7,6 +7,7 @@ import { Storage } from './storage.js';
 import { Calculator } from './calculator.js';
 import { Matcher } from './matcher.js';
 import { ExcelHandler } from './excel-handler.js';
+import { PdfHandler } from './pdf-handler.js';
 import { ExchangeAPI } from './api.js';
 import { SAMPLE_CADDIS_ITEMS, SAMPLE_SUPPLIER_ITEMS } from './sample-data.js';
 
@@ -304,15 +305,20 @@ function loadSampleData() {
 }
 
 /**
- * Maneja la subida del Excel de Caddis
+ * Maneja la subida de archivos de Caddis (Excel, CSV o PDF multipágina)
  */
 async function handleCaddisFileUpload(file) {
-  showLoading(true, file.name.endsWith('.pdf') ? 'Leyendo PDF de Caddis...' : 'Leyendo archivo de Caddis...');
+  const isPdf = file.name.toLowerCase().endsWith('.pdf');
+  showLoading(true, isPdf ? 'Iniciando lectura del PDF de Caddis...' : 'Leyendo archivo de Caddis...');
+  
   try {
     let items = [];
 
-    if (file.name.toLowerCase().endsWith('.pdf')) {
-      items = await ExcelHandler.readCaddisPdf(file);
+    if (isPdf) {
+      const lines = await PdfHandler.extractLinesFromPdf(file, (curr, total) => {
+        showLoading(true, `Leyendo PDF de Caddis (Página ${curr} de ${total})...`);
+      });
+      items = PdfHandler.parseCaddisPdfLines(lines);
     } else {
       const { sheetsData } = await ExcelHandler.readWorkbook(file);
       const firstSheetName = Object.keys(sheetsData)[0];
@@ -321,7 +327,7 @@ async function handleCaddisFileUpload(file) {
     }
 
     if (items.length === 0) {
-      throw new Error('No se detectaron productos válidos en el archivo de Caddis.');
+      throw new Error('No se pudieron extraer productos válidos del archivo. Si es un PDF, verifica que contenga la tabla de Listas de Precios de Caddis.');
     }
 
     AppState.caddisItems = items;
@@ -336,27 +342,51 @@ async function handleCaddisFileUpload(file) {
       render();
     }
   } catch (err) {
-    showToast(`Error al leer archivo Caddis: ${err.message}`, 'error');
+    showToast(`Error al procesar archivo de Caddis: ${err.message}`, 'error');
   } finally {
     showLoading(false);
   }
 }
 
 /**
- * Maneja la subida del Excel de Proveedor
+ * Maneja la subida de archivos del Proveedor (Excel, CSV o PDF)
  */
 async function handleSupplierFileUpload(file) {
-  showLoading(true, 'Leyendo lista del proveedor...');
+  const isPdf = file.name.toLowerCase().endsWith('.pdf');
+  showLoading(true, isPdf ? 'Iniciando lectura del PDF del proveedor...' : 'Leyendo lista del proveedor...');
+  
   try {
-    const { sheetsData } = await ExcelHandler.readWorkbook(file);
-    
-    // Si tiene múltiples hojas (ej. VIDRIOS, FUNDAS, MT TECNOLOGIA como en la captura 2), procesar todas
     let allSupplierItems = [];
-    Object.keys(sheetsData).forEach(sheetName => {
-      const rows = sheetsData[sheetName];
-      const parsed = ExcelHandler.parseSupplierSheet(rows);
-      allSupplierItems = allSupplierItems.concat(parsed);
-    });
+
+    if (isPdf) {
+      const lines = await PdfHandler.extractLinesFromPdf(file, (curr, total) => {
+        showLoading(true, `Leyendo PDF del proveedor (Página ${curr} de ${total})...`);
+      });
+      
+      // Probar primero si es un formato Caddis exportado por el proveedor, o formato genérico
+      const caddisFormatItems = PdfHandler.parseCaddisPdfLines(lines);
+      if (caddisFormatItems.length > 0) {
+        // Convertir formato Caddis a formato proveedor con costo = neto o precio
+        allSupplierItems = caddisFormatItems.map(c => ({
+          articulo: c.articulo,
+          precio: c.costoSinImpuestos > 0 ? c.costoSinImpuestos : c.precioVenta,
+          moneda: c.moneda || 'ARS',
+          iva: c.iva || 21.0,
+          stock: 'STOCK'
+        }));
+      } else {
+        allSupplierItems = PdfHandler.parseSupplierPdfLines(lines);
+      }
+    } else {
+      const { sheetsData } = await ExcelHandler.readWorkbook(file);
+      
+      // Si tiene múltiples hojas (ej. VIDRIOS, FUNDAS, MT TECNOLOGIA como en la captura 2), procesar todas
+      Object.keys(sheetsData).forEach(sheetName => {
+        const rows = sheetsData[sheetName];
+        const parsed = ExcelHandler.parseSupplierSheet(rows);
+        allSupplierItems = allSupplierItems.concat(parsed);
+      });
+    }
 
     if (allSupplierItems.length === 0) {
       throw new Error('No se encontraron artículos con precios válidos en el archivo del proveedor.');

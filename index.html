@@ -19,6 +19,14 @@
     }
   </script>
 
+  <!-- PDF.js para lectura directa de PDFs multipágina (87+ páginas) -->
+  <script src="lib/pdf.min.js"></script>
+  <script>
+    if (typeof pdfjsLib === 'undefined') {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>');
+    }
+  </script>
+
   <!-- PDF.js para procesamiento local de PDFs (Local con fallback a CDN) -->
   <script src="lib/pdf.min.js"></script>
   <script>
@@ -173,16 +181,16 @@
           <div class="panel-header">
             <div>
               <h2 class="panel-title">📋 1. Lista de Precios Actual de Caddis</h2>
-              <p class="panel-subtitle">Exporta la lista desde Caddis (Excel, CSV o PDF) y súbela aquí.</p>
+              <p class="panel-subtitle">Sube el PDF exportado de Caddis (ej: 87 páginas) o un archivo Excel/CSV.</p>
             </div>
             <div id="caddis-status-badge"></div>
           </div>
 
           <div class="dropzone" id="dropzone-caddis">
             <div class="dropzone-icon">📥</div>
-            <div class="dropzone-title">Arrastra aquí el Excel o PDF exportado de Caddis</div>
-            <div class="dropzone-desc">o haz clic para seleccionar archivo (.xlsx, .xls, .csv, .pdf)</div>
-            <input type="file" id="file-input-caddis" accept=".xlsx,.xls,.csv,.pdf" style="display: none;">
+            <div class="dropzone-title">Arrastra aquí el PDF o Excel de Caddis</div>
+            <div class="dropzone-desc">Soporta reportes PDF de Caddis, Excel (.xlsx, .xls) y CSV</div>
+            <input type="file" id="file-input-caddis" accept=".pdf,.xlsx,.xls,.csv" style="display: none;">
           </div>
         </div>
 
@@ -191,15 +199,15 @@
           <div class="panel-header">
             <div>
               <h2 class="panel-title">📦 2. Lista de Costos del Proveedor</h2>
-              <p class="panel-subtitle">Sube el archivo enviado por el proveedor (USD o ARS).</p>
+              <p class="panel-subtitle">Sube el catálogo en PDF o Excel enviado por el proveedor (USD o ARS).</p>
             </div>
           </div>
 
           <div class="dropzone" id="dropzone-supplier">
             <div class="dropzone-icon">📑</div>
-            <div class="dropzone-title">Arrastra aquí el Excel del Proveedor</div>
-            <div class="dropzone-desc">Detecta columnas de descripción, precios en USD/ARS e IVA</div>
-            <input type="file" id="file-input-supplier" accept=".xlsx,.xls,.csv" style="display: none;">
+            <div class="dropzone-title">Arrastra aquí el PDF o Excel del Proveedor</div>
+            <div class="dropzone-desc">Detecta tablas PDF, columnas de descripción, costos en USD/ARS e IVA</div>
+            <input type="file" id="file-input-supplier" accept=".pdf,.xlsx,.xls,.csv" style="display: none;">
           </div>
 
           <!-- O pegar texto libre / PDF -->
