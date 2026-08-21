@@ -66,33 +66,103 @@ export const ExcelHandler = {
 
     for (let r = 0; r < Math.min(15, rawRows.length); r++) {
       const row = rawRows[r].map(c => String(c).toLowerCase().trim());
-      
-      const idxCodigo = row.findIndex(c => c === 'codigo' || c === 'código' || c === 'cod' || c.includes('codigo'));
-      const idxArticulo = row.findIndex(c => c === 'articulo' || c === 'artículo' || c === 'descripcion' || c === 'nombre' || c.includes('articulo'));
-      const idxPrecio = row.findIndex(c => c === 'precio venta' || c === 'precio final' || c === 'precio' || c.includes('precio venta') || c.includes('pvp'));
 
+      // Detección flexible de columna de CÓDIGO
+      const idxCodigo = row.findIndex(c =>
+        c === 'codigo' || c === 'código' || c === 'cod' || c === 'cod.' ||
+        c === 'code' || c === 'id' || c.includes('codigo') || c.includes('código') ||
+        c === 'nro' || c === 'n°' || c === 'numero' || c === 'nro.'
+      );
+
+      // Detección flexible de columna de DESCRIPCIÓN / ARTÍCULO
+      const idxArticulo = row.findIndex(c =>
+        c === 'articulo' || c === 'artículo' || c === 'descripcion' || c === 'descripción' ||
+        c === 'nombre' || c === 'detalle' || c === 'producto' || c === 'desc' ||
+        c === 'articulo / descripcion' || c === 'articulo/descripcion' ||
+        c.includes('articulo') || c.includes('descripcion') || c.includes('detalle') ||
+        c.includes('producto') || c.includes('nombre del') || c.includes('desc.')
+      );
+
+      // Detección flexible de columna de PRECIO DE VENTA
+      const idxPrecio = row.findIndex(c =>
+        c === 'precio venta' || c === 'precio final' || c === 'precio' ||
+        c === 'pvp' || c === 'pre' || c === 'pre.' || c === 'pv' || c === 'pvta' ||
+        c === 'importe' || c === 'monto' || c === 'valor venta' || c === 'sale price' ||
+        c.includes('precio venta') || c.includes('pvp') || c.includes('precio final') ||
+        c.includes('precio de venta') || c.includes('pre. venta') || c.includes('pre. vta')
+      );
+
+      // Necesitamos al menos código + (descripción O precio)
       if (idxCodigo !== -1 && (idxArticulo !== -1 || idxPrecio !== -1)) {
         headerRowIndex = r;
         colMap.codigo = idxCodigo;
         colMap.articulo = idxArticulo;
         colMap.precioVenta = idxPrecio;
-        colMap.costoConImp = row.findIndex(c => c.includes('costo con') || c.includes('c. imp'));
-        colMap.costoSinImp = row.findIndex(c => c.includes('costo sin') || c.includes('c. sin') || c === 'costo');
+
+        // Detección flexible de columnas secundarias
+        colMap.costoConImp = row.findIndex(c =>
+          c.includes('costo con') || c.includes('c. imp') || c.includes('costo c/iva') ||
+          c.includes('costo total') || c.includes('costo final') || c.includes('cost with')
+        );
+        colMap.costoSinImp = row.findIndex(c =>
+          c.includes('costo sin') || c.includes('c. sin') || c === 'costo' ||
+          c.includes('costo s/iva') || c.includes('neto') || c.includes('cost without')
+        );
         colMap.markup = row.findIndex(c => c.includes('markup') || c.includes('mark up'));
         colMap.margen = row.findIndex(c => c.includes('margen') || c.includes('margin'));
-        colMap.iva = row.findIndex(c => c.includes('iva') || c === 'iva %');
-        colMap.moneda = row.findIndex(c => c.includes('moneda'));
-        colMap.tipo = row.findIndex(c => c.includes('tipo') || c.includes('rubro') || c.includes('categoria'));
+        colMap.iva = row.findIndex(c => c.includes('iva') || c === 'iva %' || c.includes('aliquot'));
+        colMap.moneda = row.findIndex(c => c.includes('moneda') || c === 'mon' || c.includes('currency'));
+        colMap.tipo = row.findIndex(c =>
+          c.includes('tipo') || c.includes('rubro') || c.includes('categoria') ||
+          c.includes('categoría') || c.includes('grupo') || c.includes('family')
+        );
         break;
       }
     }
 
+    // Fallback: si no encontró encabezados, intentar detectar por contenido
     if (headerRowIndex === -1) {
-      // Si no encontramos encabezado explícito, asumir estructura típica de 2 o más columnas
-      headerRowIndex = 0;
-      colMap.codigo = 0;
-      colMap.precioVenta = 1;
-      colMap.articulo = rawRows[0].length > 2 ? 2 : 0;
+      // Buscar una fila que tenga al menos 2 columnas con contenido mixto (texto + números)
+      for (let r = 0; r < Math.min(10, rawRows.length); r++) {
+        const row = rawRows[r];
+        if (!row || row.length < 2) continue;
+
+        const hasText = row.some(c => typeof c === 'string' && c.trim().length > 2 && /[a-zA-Záéíóú]/.test(c));
+        const hasNum = row.some(c => typeof c === 'number' || (typeof c === 'string' && /[\d.,]+/.test(c) && c.trim().length < 15));
+
+        if (hasText && hasNum) {
+          headerRowIndex = r;
+          // Intentar deducir: buscar columnas por tipo de dato
+          let codeCol = -1, descCol = -1, priceCol = -1;
+
+          for (let c = 0; c < row.length; c++) {
+            const val = String(row[c] || '').trim();
+            const isNum = typeof row[c] === 'number' || /^\d+[.,]?\d*$/.test(val);
+            const isText = val.length > 2 && /[a-zA-Záéíóú]/.test(val);
+
+            if (isText && descCol === -1) descCol = c;
+            else if (isNum && priceCol === -1) priceCol = c;
+          }
+
+          // La primera columna suele ser código
+          codeCol = 0;
+          if (descCol === -1) descCol = codeCol;
+          if (priceCol === -1) priceCol = row.length > 1 ? 1 : 0;
+
+          colMap.codigo = codeCol;
+          colMap.articulo = descCol;
+          colMap.precioVenta = priceCol;
+          break;
+        }
+      }
+
+      // Último recurso: asumir estructura típica
+      if (headerRowIndex === -1) {
+        headerRowIndex = 0;
+        colMap.codigo = 0;
+        colMap.precioVenta = 1;
+        colMap.articulo = rawRows[0].length > 2 ? 2 : 0;
+      }
     }
 
     const items = [];
@@ -143,16 +213,22 @@ export const ExcelHandler = {
       
       for (let c = 0; c < row.length; c++) {
         const cell = row[c];
-        if (cell.includes('articulo') || cell.includes('artículo') || cell.includes('descripcion') || cell.includes('detalle') || cell.includes('producto') || cell === 'modelo' || cell === 'item') {
+        if (cell.includes('articulo') || cell.includes('artículo') || cell.includes('descripcion') ||
+            cell.includes('descripción') || cell.includes('detalle') || cell.includes('producto') ||
+            cell === 'modelo' || cell === 'item' || cell.includes('nombre') || cell.includes('desc') ||
+            cell.includes('articulo /') || cell.includes('detalle del')) {
           if (colDesc === -1) colDesc = c;
         }
-        if (cell.includes('usd') || cell.includes('u$s') || cell.includes('precio') || cell.includes('costo') || cell.includes('valor') || cell.includes('pvp') || cell === 'dolar') {
+        if (cell.includes('usd') || cell.includes('u$s') || cell.includes('precio') || cell.includes('costo') ||
+            cell.includes('valor') || cell.includes('pvp') || cell === 'dolar' || cell.includes('importe') ||
+            cell.includes('pre.') || cell === 'pv' || cell.includes('p. unitario') || cell.includes('price') ||
+            cell.includes('monto') || cell.includes('sale')) {
           if (colPrice === -1) colPrice = c;
         }
-        if (cell.includes('stock') || cell.includes('cant') || cell.includes('disponible')) {
+        if (cell.includes('stock') || cell.includes('cant') || cell.includes('disponible') || cell.includes('existencia')) {
           if (colStock === -1) colStock = c;
         }
-        if (cell.includes('iva') || cell.includes('alicuota')) {
+        if (cell.includes('iva') || cell.includes('alicuota') || cell.includes('alícuota') || cell.includes('impuesto')) {
           if (colIva === -1) colIva = c;
         }
       }

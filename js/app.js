@@ -596,7 +596,7 @@ function renderSetupSummary() {
     return;
   }
 
-  summaryEl.innerHTML = `
+  let html = `
     <div class="summary-cards-grid">
       <div class="summary-card">
         <div class="summary-label">Artículos Caddis</div>
@@ -615,6 +615,84 @@ function renderSetupSummary() {
       </div>
     </div>
   `;
+
+  // Vista previa de artículos Caddis
+  if (AppState.caddisItems.length > 0) {
+    const previewCaddis = AppState.caddisItems.slice(0, 20);
+    const totalCaddis = AppState.caddisItems.length;
+    html += `
+      <div class="card-panel" style="margin-top: 12px;">
+        <div class="panel-header" style="border-bottom: none; padding-bottom: 0;">
+          <div>
+            <h3 style="font-size: 14px; font-weight: 700;">📋 Artículos Caddis cargados (${totalCaddis} total)</h3>
+          </div>
+          ${totalCaddis > 20 ? `<span class="text-xs text-muted">Mostrando primeros 20 de ${totalCaddis}</span>` : ''}
+        </div>
+        <div class="table-container" style="max-height: 300px; overflow-y: auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 100px;">Código</th>
+                <th>Artículo</th>
+                <th class="text-right" style="width: 120px;">PVP Actual</th>
+                <th class="text-right" style="width: 100px;">IVA %</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${previewCaddis.map(item => `
+                <tr>
+                  <td><span class="code-pill">${escapeHtml(item.codigo)}</span></td>
+                  <td>${escapeHtml(item.articulo)}</td>
+                  <td class="text-right font-mono">$ ${item.precioVenta.toLocaleString('es-AR')}</td>
+                  <td class="text-right">${item.iva || 21}%</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  // Vista previa de artículos del Proveedor
+  if (AppState.supplierItems.length > 0) {
+    const previewProv = AppState.supplierItems.slice(0, 20);
+    const totalProv = AppState.supplierItems.length;
+    html += `
+      <div class="card-panel" style="margin-top: 12px;">
+        <div class="panel-header" style="border-bottom: none; padding-bottom: 0;">
+          <div>
+            <h3 style="font-size: 14px; font-weight: 700;">📦 Artículos del Proveedor cargados (${totalProv} total)</h3>
+          </div>
+          ${totalProv > 20 ? `<span class="text-xs text-muted">Mostrando primeros 20 de ${totalProv}</span>` : ''}
+        </div>
+        <div class="table-container" style="max-height: 300px; overflow-y: auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Artículo</th>
+                <th class="text-right" style="width: 100px;">Moneda</th>
+                <th class="text-right" style="width: 120px;">Costo</th>
+                <th class="text-right" style="width: 80px;">IVA %</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${previewProv.map(item => `
+                <tr>
+                  <td>${escapeHtml(item.articulo)}</td>
+                  <td class="text-right">${escapeHtml(item.moneda || 'USD')}</td>
+                  <td class="text-right font-mono">${item.moneda || 'USD'} ${item.precio.toFixed(2)}</td>
+                  <td class="text-right">${item.iva || 21}%</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  summaryEl.innerHTML = html;
 }
 
 /**
