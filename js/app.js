@@ -670,22 +670,19 @@ function renderMatcherTable() {
             <div><strong>[${escapeHtml(cItem.codigo)}]</strong> ${escapeHtml(cItem.articulo)}</div>
             <div class="text-xs text-muted">PVP Actual en Caddis: $ ${cItem.precioVenta.toLocaleString('es-AR')}</div>
           ` : `
-            <span class="text-danger">Ninguna coincidencia automática suficiente</span>
+            <span class="text-danger">Sin coincidencia automática</span>
           `}
+          <div class="code-link-row" style="margin-top: 4px; display: flex; gap: 4px; align-items: center;">
+            <input type="text" class="form-input code-link-input" data-index="${idx}" placeholder="Escribí el código Caddis..." style="width: 160px; font-size: 12px; padding: 3px 6px; margin: 0;">
+            <button class="btn btn-xs btn-primary btn-link-code" data-index="${idx}" title="Buscar código y vincular">Vincular</button>
+          </div>
         </td>
         <td class="text-center" style="white-space: nowrap;">
           ${cItem ? `
             <button class="btn btn-sm btn-confirm btn-confirm-match ${row.isManualMapping ? 'confirmed' : ''}" data-index="${idx}" title="${row.isManualMapping ? 'Ya está confirmado y guardado' : 'Confirmar que es el mismo artículo y guardar para siempre'}">
               ${row.isManualMapping ? '✅ Confirmado' : '✓ Confirmar'}
             </button>
-            <button class="btn btn-sm btn-outline btn-action-match" data-index="${idx}" title="Buscar otro artículo en Caddis">
-              Cambiar
-            </button>
-          ` : `
-            <button class="btn btn-sm btn-outline btn-action-match" data-index="${idx}">
-              Vincular Manualmente
-            </button>
-          `}
+          ` : ''}
         </td>
       </tr>
     `;
@@ -712,6 +709,81 @@ function renderMatcherTable() {
       }
     });
   });
+
+  // Botón "Vincular" por código escrito
+  container.querySelectorAll('.btn-link-code').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const idx = parseInt(e.currentTarget.dataset.index);
+      linkByCode(idx);
+    });
+  });
+
+  // Enter en el input de código también vincula
+  container.querySelectorAll('.code-link-input').forEach(input => {
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const idx = parseInt(e.currentTarget.dataset.index);
+        linkByCode(idx);
+      }
+    });
+  });
+}
+
+/**
+ * Vincula un producto del proveedor con un código de Caddis escrito por el usuario
+ */
+function linkByCode(idx) {
+  const input = document.querySelector(`.code-link-input[data-index="${idx}"]`);
+  if (!input) return;
+
+  const code = input.value.trim();
+  if (!code) {
+    showToast('Escribí un código de Caddis para vincular.', 'warning');
+    return;
+  }
+
+  const row = AppState.matchedData[idx];
+  if (!row) return;
+
+  // Buscar por código exacto (case-insensitive)
+  const found = AppState.caddisItems.find(c =>
+    c.codigo && c.codigo.toLowerCase() === code.toLowerCase()
+  );
+
+  if (!found) {
+    showToast(`No se encontró ningún artículo con código "${code}" en Caddis.`, 'error');
+    input.style.borderColor = 'var(--rose)';
+    setTimeout(() => { input.style.borderColor = ''; }, 1500);
+    return;
+  }
+
+  // Asociar y guardar en memoria
+  row.matchedCaddisItem = found;
+  row.isManualMapping = true;
+  row.matchScore = 1.0;
+  row.confidence = 'high';
+
+  // Recalcular precios con el nuevo ítem asociado
+  row.calculations = Calculator.calculateItem({
+    supplierCost: row.supplierItem.precio,
+    currency: row.supplierItem.moneda || 'USD',
+    dollarRate: AppState.config.dollarRate,
+    ivaRate: row.supplierItem.iva || AppState.config.defaultIva,
+    markupPvp: AppState.config.markupPvp,
+    markupMayorista: AppState.config.markupMayorista,
+    roundingRule: AppState.config.roundingRule,
+    currentPvp: found.precioVenta,
+    currentMayorista: found.precioMayorista,
+    currentCostWithTax: found.costoConImpuestos,
+    currentCostWithoutTax: found.costoSinImpuestos
+  });
+
+  // Guardar en memoria de equivalencias
+  const cleanKey = Matcher.normalize(row.supplierItem.articulo);
+  Storage.saveMapping(cleanKey, found);
+
+  showToast(`✅ Vinculado: "${row.supplierItem.articulo}" → [${found.codigo}] ${found.articulo}`, 'success');
+  render();
 }
 
 /**
