@@ -616,83 +616,63 @@ function renderSetupSummary() {
     </div>
   `;
 
-  // Vista previa de artículos Caddis
+  // Tabla Caddis con busqueda
   if (AppState.caddisItems.length > 0) {
-    const previewCaddis = AppState.caddisItems.slice(0, 20);
-    const totalCaddis = AppState.caddisItems.length;
-    html += `
-      <div class="card-panel" style="margin-top: 12px;">
-        <div class="panel-header" style="border-bottom: none; padding-bottom: 0;">
-          <div>
-            <h3 style="font-size: 14px; font-weight: 700;">📋 Artículos Caddis cargados (${totalCaddis} total)</h3>
-          </div>
-          ${totalCaddis > 20 ? `<span class="text-xs text-muted">Mostrando primeros 20 de ${totalCaddis}</span>` : ''}
-        </div>
-        <div class="table-container" style="max-height: 300px; overflow-y: auto;">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th style="width: 100px;">Código</th>
-                <th>Artículo</th>
-                <th class="text-right" style="width: 120px;">PVP Actual</th>
-                <th class="text-right" style="width: 100px;">IVA %</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${previewCaddis.map(item => `
-                <tr>
-                  <td><span class="code-pill">${escapeHtml(item.codigo)}</span></td>
-                  <td>${escapeHtml(item.articulo)}</td>
-                  <td class="text-right font-mono">$ ${item.precioVenta.toLocaleString('es-AR')}</td>
-                  <td class="text-right">${item.iva || 21}%</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    `;
+    html += '<div class="card-panel" style="margin-top: 12px;">'
+      + '<div class="panel-header" style="border-bottom: none; padding-bottom: 0;">'
+      + '<h3 style="font-size: 14px; font-weight: 700;">Articulos Caddis (' + AppState.caddisItems.length + ')</h3>'
+      + '<input type="text" id="search-caddis-preview" class="form-input" placeholder="Buscar codigo o nombre..." style="width: 220px; font-size: 12px; padding: 4px 8px;">'
+      + '</div>'
+      + '<div class="table-container" style="max-height: 400px; overflow-y: auto;">'
+      + '<table class="data-table"><thead style="position: sticky; top: 0; z-index: 1;"><tr>'
+      + '<th style="width: 100px;">Codigo</th><th>Articulo</th>'
+      + '<th class="text-right" style="width: 120px;">PVP Actual</th><th class="text-right" style="width: 80px;">IVA %</th>'
+      + '</tr></thead><tbody id="caddis-preview-tbody">';
+    AppState.caddisItems.forEach(item => {
+      html += '<tr><td><span class="code-pill">' + escapeHtml(item.codigo) + '</span></td>'
+        + '<td>' + escapeHtml(item.articulo) + '</td>'
+        + '<td class="text-right font-mono">$ ' + item.precioVenta.toLocaleString('es-AR') + '</td>'
+        + '<td class="text-right">' + (item.iva || 21) + '%</td></tr>';
+    });
+    html += '</tbody></table></div></div>';
   }
 
-  // Vista previa de artículos del Proveedor
+  // Tabla Proveedor con busqueda
   if (AppState.supplierItems.length > 0) {
-    const previewProv = AppState.supplierItems.slice(0, 20);
-    const totalProv = AppState.supplierItems.length;
-    html += `
-      <div class="card-panel" style="margin-top: 12px;">
-        <div class="panel-header" style="border-bottom: none; padding-bottom: 0;">
-          <div>
-            <h3 style="font-size: 14px; font-weight: 700;">📦 Artículos del Proveedor cargados (${totalProv} total)</h3>
-          </div>
-          ${totalProv > 20 ? `<span class="text-xs text-muted">Mostrando primeros 20 de ${totalProv}</span>` : ''}
-        </div>
-        <div class="table-container" style="max-height: 300px; overflow-y: auto;">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Artículo</th>
-                <th class="text-right" style="width: 100px;">Moneda</th>
-                <th class="text-right" style="width: 120px;">Costo</th>
-                <th class="text-right" style="width: 80px;">IVA %</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${previewProv.map(item => `
-                <tr>
-                  <td>${escapeHtml(item.articulo)}</td>
-                  <td class="text-right">${escapeHtml(item.moneda || 'USD')}</td>
-                  <td class="text-right font-mono">${item.moneda || 'USD'} ${item.precio.toFixed(2)}</td>
-                  <td class="text-right">${item.iva || 21}%</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    `;
+    html += '<div class="card-panel" style="margin-top: 12px;">'
+      + '<div class="panel-header" style="border-bottom: none; padding-bottom: 0;">'
+      + '<h3 style="font-size: 14px; font-weight: 700;">Articulos Proveedor (' + AppState.supplierItems.length + ')</h3>'
+      + '<input type="text" id="search-supplier-preview" class="form-input" placeholder="Buscar nombre..." style="width: 220px; font-size: 12px; padding: 4px 8px;">'
+      + '</div>'
+      + '<div class="table-container" style="max-height: 400px; overflow-y: auto;">'
+      + '<table class="data-table"><thead style="position: sticky; top: 0; z-index: 1;"><tr>'
+      + '<th>Articulo</th><th class="text-right" style="width: 80px;">Moneda</th>'
+      + '<th class="text-right" style="width: 120px;">Costo</th><th class="text-right" style="width: 80px;">IVA %</th>'
+      + '</tr></thead><tbody id="supplier-preview-tbody">';
+    AppState.supplierItems.forEach(item => {
+      html += '<tr><td>' + escapeHtml(item.articulo) + '</td>'
+        + '<td class="text-right">' + escapeHtml(item.moneda || 'USD') + '</td>'
+        + '<td class="text-right font-mono">' + (item.moneda || 'USD') + ' ' + item.precio.toFixed(2) + '</td>'
+        + '<td class="text-right">' + (item.iva || 21) + '%</td></tr>';
+    });
+    html += '</tbody></table></div></div>';
   }
 
   summaryEl.innerHTML = html;
+
+  var sc = document.getElementById('search-caddis-preview');
+  if (sc) sc.addEventListener('input', function(e) { filterPreviewTable('caddis-preview-tbody', e.target.value); });
+  var ss = document.getElementById('search-supplier-preview');
+  if (ss) ss.addEventListener('input', function(e) { filterPreviewTable('supplier-preview-tbody', e.target.value); });
+}
+
+function filterPreviewTable(tbodyId, query) {
+  var q = query.toLowerCase();
+  var tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  tbody.querySelectorAll('tr').forEach(function(tr) {
+    tr.style.display = tr.textContent.toLowerCase().indexOf(q) !== -1 ? '' : 'none';
+  });
 }
 
 /**
